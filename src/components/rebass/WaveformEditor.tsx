@@ -20,7 +20,6 @@ export const WaveformEditor = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 800, h: 200 });
   const dragRef = useRef<DragMode>("none");
-  const pointerMovedRef = useRef(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -110,7 +109,6 @@ export const WaveformEditor = () => {
   const onPointerDown = (e: React.PointerEvent) => {
     if (!buffer) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    pointerMovedRef.current = false;
 
     const t = getTime(e.clientX);
     const handleTolPx = 22;
@@ -127,12 +125,11 @@ export const WaveformEditor = () => {
     }
 
     dragRef.current = "seek";
-    setPlayhead(Math.max(cropStart, Math.min(cropEnd, t)));
+    setPlayhead(Math.max(0, Math.min(duration, t)));
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (dragRef.current === "none" || !buffer) return;
-    pointerMovedRef.current = true;
 
     const t = Math.max(0, Math.min(duration, getTime(e.clientX)));
     if (dragRef.current === "start") {
@@ -140,7 +137,7 @@ export const WaveformEditor = () => {
     } else if (dragRef.current === "end") {
       setCrop(cropStart, Math.max(t, cropStart + 0.02));
     } else if (dragRef.current === "seek") {
-      setPlayhead(Math.max(cropStart, Math.min(cropEnd, t)));
+      setPlayhead(t);
     }
   };
 
@@ -156,10 +153,9 @@ export const WaveformEditor = () => {
     if (mode !== "seek") return;
 
     const t = Math.max(0, Math.min(duration, getTime(e.clientX)));
-    const clampedTime = Math.max(cropStart, Math.min(cropEnd, t));
-    setPlayhead(clampedTime);
+    setPlayhead(t);
 
-    await seekTo(clampedTime);
+    await seekTo(t);
   };
 
   return (
