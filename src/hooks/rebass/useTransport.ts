@@ -1,0 +1,111 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { buildGraph } from "@/lib/audio/graph";
+import { createAudioContext } from "@/lib/audio/context";
+import { showError } from "@/utils/toast";
+import type { EngineRefs } from "./types";
+
+export function useTransport(
+  buffer: AudioBuffer | null,
+  { settingsRef, cropRef, loopRef }: EngineRefs,
+) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playhead, setPlayhead] = useState(0);
+
+  const ctxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const oscRef = useRef<OscillatorNode[]>([]);
+  const rafRef = useRef<number | null>(null);
+  const startTimeRef = useRef(0);
+  const playingRef = useRef(false);
+
+  const ensureCtx = useCallback(() => {
+    if (!ctxRef.current) ctxRef.current = createAudioContext();
+    return ctxRef.current;
+  }, []);
+
+  const stop = useCallback(() => {
+    playingRef.current = false;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    if (sourceRef.current) {
+      try {
+        sourceRef.current.onended = null;
+        sourceRef.current.stop();
+      } catch {
+        // already stopped
+      }
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+    oscRef.current.forEach((o) => {
+      try {
+        o.stop();
+      } catch {
+        // ignore
+      }
+      o.disconnect();
+    });
+    oscRef.current = [];
+    setIsPlaying(false);
+  }, []);
+
+  const animate = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!ctx || !playingRef.current) return;
+    const s = settingsRef.current;
+    const { start, end } = cropRef.current;
+    const elapsed = ctx.currentTime - startTimeRef.current;
+    const srcElapsed = elapsed * s.speed;
+    const len = Math.max(0.0001, end - start);
+    const pos = loopRef.current
+      ? start + (srcElapsed % len)
+      : Math.min(end, start + srcElapsed);
+    setPlayhead(pos);
+    rafRef.current = requestAnimationFrame(animate);
+  }, [settingsRef, cropRef, loopRef]);
+
+  const preview = useCallback(async () => {
+    if (!buffer) return;
+    stop();
+    const ctx = ensureCtx();
+    await ctx.resume();
+    const s = settingsRef.current;
+    const { start, end } = cropRef.current;
+    if (end - start < 0.02) {
+      showError("Selection is too short to preview.");
+      return;
+    }
+    const startTime = ctx.currentTime + 0.06;
+    startTimeRef.current = startTime;
+
+    const { source, oscillators } = buildGraph(ctx, buffer, s, {
+      cropStart: start,
+      cropEnd: end,
+      loop: loopRef.current,
+      applyFades: !loopRef.current,
+      startTime,
+    });
+
+    if (loopRef.current) {
+      source.start(startTime, start);
+    } else {
+      source.start(startTime, start, end - start);
+    }
+    oscillators.forEach((o) => o.start(startTime));
+
+    source.onended = () => {
+      if (!loopRef.current) stop();
+    };
+
+    sourceRef.current = source;
+    oscRef.current = oscillators;
+    playingRef.current = true;
+    setIsPlaying(true);
+    setPlayhead(start);
+    rafRef.current = requestAnimationFrame(animate);
+  }, [buffer, stop, animate, ensureCtx, settingsRef, cropRef, loopRef]);
+
+  useEffect(() => () => stop(), [stop]);
+
+  return { isPlaying, playhead, setPlayhead, preview, stop };
+}
