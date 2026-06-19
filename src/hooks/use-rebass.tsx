@@ -29,6 +29,9 @@ interface RebassContextValue {
   pan: number;
   loop: boolean;
   playhead: number;
+  replaceStart: number;
+  replaceEnd: number;
+  appendLoopToEnd: boolean;
   userPresets: SavedPreset[];
   loadFile: (f: File) => Promise<void>;
   updateSettings: (p: Partial<RebassSettings>) => void;
@@ -40,6 +43,10 @@ interface RebassContextValue {
   setLoopPoints: (start: number, end: number) => void;
   setLoopStartFromPlayhead: () => void;
   setLoopEndFromPlayhead: () => void;
+  setReplaceRange: (start: number, end: number) => void;
+  setReplaceStartFromPlayhead: () => void;
+  setReplaceEndFromPlayhead: () => void;
+  setAppendLoopToEnd: (enabled: boolean) => void;
   setZoom: (z: number) => void;
   setPan: (p: number) => void;
   setLoop: (l: boolean) => void;
@@ -63,6 +70,9 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
   );
   const [cropStart, setCropStart] = useState(0);
   const [cropEnd, setCropEnd] = useState(0);
+  const [replaceStart, setReplaceStart] = useState(0);
+  const [replaceEnd, setReplaceEnd] = useState(0);
+  const [appendLoopToEnd, setAppendLoopToEnd] = useState(false);
   const [zoom, setZoomState] = useState(1);
   const [pan, setPan] = useState(0);
   const [loop, setLoop] = useState(false);
@@ -72,6 +82,8 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
   const settingsRef = useLatestRef(settings);
   const cropRef = useLatestRef({ start: cropStart, end: cropEnd });
   const loopRef = useLatestRef(loop);
+  const replaceRef = useLatestRef({ start: replaceStart, end: replaceEnd });
+  const appendLoopToEndRef = useLatestRef(appendLoopToEnd);
 
   const engineRefs = { settingsRef, cropRef, loopRef };
 
@@ -87,6 +99,8 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
   const { isRendering, download, renderSelection } = useRenderer(buffer, file, {
     settingsRef,
     cropRef,
+    replaceRef,
+    appendLoopToEndRef,
   });
 
   useWakeLock(isPlaying);
@@ -165,6 +179,31 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     showSuccess("Loop B set from playhead.");
   }, [buffer, playhead, cropStart]);
 
+  const setReplaceRange = useCallback(
+    (start: number, end: number) => {
+      if (!buffer) return;
+      const safeStart = Math.max(0, Math.min(buffer.duration, start));
+      const safeEnd = Math.max(safeStart + 0.02, Math.min(buffer.duration, end));
+      setReplaceStart(safeStart);
+      setReplaceEnd(safeEnd);
+    },
+    [buffer],
+  );
+
+  const setReplaceStartFromPlayhead = useCallback(() => {
+    if (!buffer) return;
+    const safeStart = Math.max(0, Math.min(playhead, replaceEnd - 0.02));
+    setReplaceStart(safeStart);
+    showSuccess("Cut start set from playhead.");
+  }, [buffer, playhead, replaceEnd]);
+
+  const setReplaceEndFromPlayhead = useCallback(() => {
+    if (!buffer) return;
+    const safeEnd = Math.max(replaceStart + 0.02, Math.min(playhead, buffer.duration));
+    setReplaceEnd(safeEnd);
+    showSuccess("Cut end set from playhead.");
+  }, [buffer, playhead, replaceStart]);
+
   const setZoom = useCallback(
     (z: number) => {
       const clamped = Math.max(1, Math.min(40, z));
@@ -185,6 +224,9 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
       if (!buf) return;
       setCropStart(0);
       setCropEnd(buf.duration);
+      setReplaceStart(Math.max(0, buf.duration - Math.min(8, buf.duration)));
+      setReplaceEnd(buf.duration);
+      setAppendLoopToEnd(false);
       setZoomState(1);
       setPan(0);
       setPlayhead(0);
@@ -199,7 +241,10 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     if (buffer) {
       setCropStart(0);
       setCropEnd(buffer.duration);
+      setReplaceStart(Math.max(0, buffer.duration - Math.min(8, buffer.duration)));
+      setReplaceEnd(buffer.duration);
     }
+    setAppendLoopToEnd(false);
     setZoomState(1);
     setPan(0);
     setLoop(false);
@@ -221,6 +266,9 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     pan,
     loop,
     playhead,
+    replaceStart,
+    replaceEnd,
+    appendLoopToEnd,
     userPresets: presets,
     loadFile,
     updateSettings,
@@ -232,6 +280,10 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     setLoopPoints,
     setLoopStartFromPlayhead,
     setLoopEndFromPlayhead,
+    setReplaceRange,
+    setReplaceStartFromPlayhead,
+    setReplaceEndFromPlayhead,
+    setAppendLoopToEnd,
     setZoom,
     setPan,
     setLoop,
