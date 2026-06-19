@@ -1,5 +1,7 @@
 import { RebassSettings, EQ_FREQUENCIES } from "./types";
 import { createImpulseResponse } from "./reverb";
+import { buildStemStage } from "./stems";
+import { applyDeviceChain, getDeviceProfile } from "./devices";
 
 export interface RenderOptions {
   cropStart: number;
@@ -31,7 +33,8 @@ export function buildGraph(
     source.loopEnd = opts.cropEnd;
   }
 
-  let node: AudioNode = source;
+  // Stem separation stage (runs before EQ / effects)
+  let node: AudioNode = buildStemStage(ctx, source, s.stemMode);
 
   // Full-range graphic EQ
   EQ_FREQUENCIES.forEach((freq, i) => {
@@ -86,10 +89,14 @@ export function buildGraph(
     echoGain.connect(mixBus);
   }
 
+  // Device / speaker voicing (colors the whole mix like the target playback gear)
+  const profile = getDeviceProfile(s.deviceProfile);
+  const deviceOut = applyDeviceChain(ctx, mixBus, profile.bands);
+
   // Stereo / 8D panner
   const panner = ctx.createStereoPanner();
   panner.pan.value = Math.max(-1, Math.min(1, s.stereoPan));
-  mixBus.connect(panner);
+  deviceOut.connect(panner);
 
   const oscillators: OscillatorNode[] = [];
   if (s.panDepth > 0 && s.panRate > 0) {

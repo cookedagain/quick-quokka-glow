@@ -5,6 +5,7 @@ import { useLatestRef } from "./rebass/useLatestRef";
 import { useAudioFile } from "./rebass/useAudioFile";
 import { useTransport } from "./rebass/useTransport";
 import { useRenderer } from "./rebass/useRenderer";
+import { usePresets, SavedPreset } from "./rebass/usePresets";
 
 interface RebassContextValue {
   file: File | null;
@@ -19,8 +20,13 @@ interface RebassContextValue {
   pan: number;
   loop: boolean;
   playhead: number;
+  userPresets: SavedPreset[];
   loadFile: (f: File) => Promise<void>;
   updateSettings: (p: Partial<RebassSettings>) => void;
+  applyPreset: (p: Partial<RebassSettings>) => void;
+  savePreset: (name: string) => void;
+  applyUserPreset: (id: string) => void;
+  deletePreset: (id: string) => void;
   setCrop: (start: number, end: number) => void;
   setZoom: (z: number) => void;
   setPan: (p: number) => void;
@@ -44,6 +50,8 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
   const [pan, setPan] = useState(0);
   const [loop, setLoop] = useState(false);
 
+  const { presets, save, remove } = usePresets();
+
   // Latest-value refs for use inside the audio engine callbacks.
   const settingsRef = useLatestRef(settings);
   const cropRef = useLatestRef({ start: cropStart, end: cropEnd });
@@ -63,6 +71,30 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((p: Partial<RebassSettings>) => {
     setSettings((prev) => ({ ...prev, ...p }));
   }, []);
+
+  const applyPreset = useCallback((p: Partial<RebassSettings>) => {
+    setSettings((prev) => ({ ...prev, ...p }));
+    showSuccess("Preset applied.");
+  }, []);
+
+  const savePreset = useCallback(
+    (name: string) => {
+      save(name, settings);
+      showSuccess("Preset saved.");
+    },
+    [save, settings],
+  );
+
+  const applyUserPreset = useCallback(
+    (id: string) => {
+      const found = presets.find((p) => p.id === id);
+      if (found) {
+        setSettings(found.settings);
+        showSuccess(`Loaded "${found.name}".`);
+      }
+    },
+    [presets],
+  );
 
   const setCrop = useCallback((start: number, end: number) => {
     setCropStart(Math.max(0, start));
@@ -124,8 +156,13 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     pan,
     loop,
     playhead,
+    userPresets: presets,
     loadFile,
     updateSettings,
+    applyPreset,
+    savePreset,
+    applyUserPreset,
+    deletePreset: remove,
     setCrop,
     setZoom,
     setPan,

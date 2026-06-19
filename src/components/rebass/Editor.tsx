@@ -3,6 +3,9 @@ import { useRebass } from "@/hooks/use-rebass";
 import { WaveformEditor } from "./WaveformEditor";
 import { ZoomControl } from "./ZoomControl";
 import { TransportBar } from "./TransportBar";
+import { PresetPanel } from "./PresetPanel";
+import { StemLabPanel } from "./StemLabPanel";
+import { DeviceProfilePanel } from "./DeviceProfilePanel";
 import { SpeedPitchPanel } from "./SpeedPitchPanel";
 import { EqualizerPanel } from "./EqualizerPanel";
 import { BassSpacePanel } from "./BassSpacePanel";
@@ -56,7 +59,11 @@ export const Editor = () => {
         <TransportBar />
       </div>
 
+      <PresetPanel />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <StemLabPanel />
+        <DeviceProfilePanel />
         <SpeedPitchPanel />
         <FadePanel />
         <div className="lg:col-span-2">

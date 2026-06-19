@@ -2,10 +2,14 @@ export const EQ_FREQUENCIES = [
   31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000,
 ] as const;
 
+export type StemMode = "full" | "karaoke" | "vocals" | "bass" | "drums";
+
 export interface RebassSettings {
   speed: number; // 0.5 - 1.5
   pitch: number; // semitones -12..12
   lockPitchToSpeed: boolean;
+  stemMode: StemMode;
+  deviceProfile: string; // device profile id
   eq: number[]; // dB per band, length = EQ_FREQUENCIES.length
   bassBoost: number; // dB
   reverbMix: number; // 0..1
@@ -25,6 +29,8 @@ export const DEFAULT_SETTINGS: RebassSettings = {
   speed: 0.85,
   pitch: 0,
   lockPitchToSpeed: true,
+  stemMode: "full",
+  deviceProfile: "flat",
   eq: EQ_FREQUENCIES.map(() => 0),
   bassBoost: 4,
   reverbMix: 0.25,
