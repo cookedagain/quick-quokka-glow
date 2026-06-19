@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Save, Trash2 } from "lucide-react";
+import { Sparkles, Save, Trash2, Share2 } from "lucide-react";
 import { PanelCard } from "./PanelCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +7,14 @@ import { useRebass } from "@/hooks/use-rebass";
 import { BUILTIN_PRESETS } from "@/lib/audio/presets";
 
 export const PresetPanel = () => {
-  const { applyPreset, savePreset, userPresets, applyUserPreset, deletePreset } =
-    useRebass();
+  const {
+    applyPreset,
+    savePreset,
+    userPresets,
+    applyUserPreset,
+    deletePreset,
+    shareSettings,
+  } = useRebass();
   const [name, setName] = useState("");
 
   const handleSave = () => {
@@ -18,6 +24,20 @@ export const PresetPanel = () => {
 
   return (
     <PanelCard title="Presets" icon={Sparkles}>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          Tap a vibe, save your own, or share a link with your exact settings.
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-8 shrink-0 rounded-xl"
+          onClick={shareSettings}
+        >
+          <Share2 className="mr-1.5 h-4 w-4" /> Share
+        </Button>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {BUILTIN_PRESETS.map((p) => (
           <button

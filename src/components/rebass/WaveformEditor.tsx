@@ -80,10 +80,10 @@ export const WaveformEditor = () => {
     ctx.fillStyle = "rgba(167,139,250,0.95)";
     ctx.fillRect(selX0 - 1, 0, 2, size.h);
     ctx.fillRect(selX1 - 1, 0, 2, size.h);
-    // handles
+    // handles (larger for touch)
     ctx.fillStyle = "rgba(34,211,238,1)";
-    ctx.fillRect(selX0 - 3, mid - 14, 6, 28);
-    ctx.fillRect(selX1 - 3, mid - 14, 6, 28);
+    ctx.fillRect(selX0 - 4, mid - 20, 8, 40);
+    ctx.fillRect(selX1 - 4, mid - 20, 8, 40);
 
     // playhead
     const phX = timeToX(playhead);
@@ -113,13 +113,14 @@ export const WaveformEditor = () => {
     if (!buffer) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const t = getTime(e.clientX);
-    const handleTol = visible * 0.02;
+    // Pixel-based tolerance so handles are easy to grab on touch screens.
+    const handleTolPx = 22;
+    const handleTol = (handleTolPx / size.w) * visible;
     if (Math.abs(t - cropStart) < handleTol) {
       dragRef.current = "start";
     } else if (Math.abs(t - cropEnd) < handleTol) {
       dragRef.current = "end";
     } else if (t > cropStart && t < cropEnd) {
-      dragRef.current = "move";
       dragRef.current = "seek";
       setPlayhead(Math.max(cropStart, Math.min(cropEnd, t)));
     } else {

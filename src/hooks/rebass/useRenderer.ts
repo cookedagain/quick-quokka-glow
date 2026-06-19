@@ -13,9 +13,38 @@ export function useRenderer(
 ) {
   const [isRendering, setIsRendering] = useState(false);
 
+  const renderSelection = useCallback(async (): Promise<AudioBuffer | null> => {
+    if (!buffer) return null;
+    const s = settingsRef.current;
+    const { start, end } = cropRef.current;
+    if (end - start < 0.02) return null;
+
+    const realDur = (end - start) / s.speed;
+    const reverbTail = s.reverbMix > 0 ? s.reverbRoomSize + 0.5 : 0;
+    const echoTail =
+      s.echoMix > 0
+        ? Math.min(4, s.echoTime / (1 - Math.min(0.95, s.echoFeedback)))
+        : 0;
+    const tail = Math.max(reverbTail, echoTail);
+    const sampleRate = buffer.sampleRate;
+    const length = Math.ceil(sampleRate * (realDur + tail));
+
+    const offline = new OfflineAudioContext(2, length, sampleRate);
+    const { source, oscillators } = buildGraph(offline, buffer, s, {
+      cropStart: start,
+      cropEnd: end,
+      loop: false,
+      applyFades: true,
+      startTime: 0,
+    });
+    source.start(0, start, end - start);
+    oscillators.forEach((o) => o.start(0));
+
+    return offline.startRendering();
+  }, [buffer, settingsRef, cropRef]);
+
   const download = useCallback(async () => {
     if (!buffer) return;
-    const s = settingsRef.current;
     const { start, end } = cropRef.current;
     if (end - start < 0.02) {
       showError("Selection is too short to render.");
@@ -23,28 +52,11 @@ export function useRenderer(
     }
     setIsRendering(true);
     try {
-      const realDur = (end - start) / s.speed;
-      const reverbTail = s.reverbMix > 0 ? s.reverbRoomSize + 0.5 : 0;
-      const echoTail =
-        s.echoMix > 0
-          ? Math.min(4, s.echoTime / (1 - Math.min(0.95, s.echoFeedback)))
-          : 0;
-      const tail = Math.max(reverbTail, echoTail);
-      const sampleRate = buffer.sampleRate;
-      const length = Math.ceil(sampleRate * (realDur + tail));
-
-      const offline = new OfflineAudioContext(2, length, sampleRate);
-      const { source, oscillators } = buildGraph(offline, buffer, s, {
-        cropStart: start,
-        cropEnd: end,
-        loop: false,
-        applyFades: true,
-        startTime: 0,
-      });
-      source.start(0, start, end - start);
-      oscillators.forEach((o) => o.start(0));
-
-      const rendered = await offline.startRendering();
+      const rendered = await renderSelection();
+      if (!rendered) {
+        showError("Selection is too short to render.");
+        return;
+      }
       const blob = encodeWav(rendered);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -56,12 +68,12 @@ export function useRenderer(
       a.remove();
       URL.revokeObjectURL(url);
       showSuccess("Rendered & downloaded your WAV!");
-    } catch (e) {
+    } catch {
       showError("Rendering failed. Try a shorter selection.");
     } finally {
       setIsRendering(false);
     }
-  }, [buffer, file, settingsRef, cropRef]);
+  }, [buffer, file, cropRef, renderSelection]);
 
-  return { isRendering, download };
+  return { isRendering, download, renderSelection };
 }

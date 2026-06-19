@@ -1,4 +1,10 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { DEFAULT_SETTINGS, RebassSettings } from "@/lib/audio/types";
 import { showSuccess } from "@/utils/toast";
 import { useLatestRef } from "./rebass/useLatestRef";
@@ -6,12 +12,15 @@ import { useAudioFile } from "./rebass/useAudioFile";
 import { useTransport } from "./rebass/useTransport";
 import { useRenderer } from "./rebass/useRenderer";
 import { usePresets, SavedPreset } from "./rebass/usePresets";
+import { useWakeLock } from "./rebass/useWakeLock";
+import { buildShareUrl, readSettingsFromUrl } from "@/lib/audio/share";
 
 interface RebassContextValue {
   file: File | null;
   buffer: AudioBuffer | null;
   isDecoding: boolean;
   isPlaying: boolean;
+  isOriginal: boolean;
   isRendering: boolean;
   settings: RebassSettings;
   cropStart: number;
@@ -32,10 +41,12 @@ interface RebassContextValue {
   setPan: (p: number) => void;
   setLoop: (l: boolean) => void;
   setPlayhead: (t: number) => void;
-  preview: () => Promise<void>;
+  preview: (bypass?: boolean) => Promise<void>;
   stop: () => void;
   reset: () => void;
   download: () => Promise<void>;
+  renderSelection: () => Promise<AudioBuffer | null>;
+  shareSettings: () => void;
 }
 
 const RebassContext = createContext<RebassContextValue | null>(null);
@@ -43,7 +54,9 @@ const RebassContext = createContext<RebassContextValue | null>(null);
 export function RebassProvider({ children }: { children: React.ReactNode }) {
   const { file, buffer, isDecoding, decode } = useAudioFile();
 
-  const [settings, setSettings] = useState<RebassSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<RebassSettings>(
+    () => readSettingsFromUrl() ?? DEFAULT_SETTINGS,
+  );
   const [cropStart, setCropStart] = useState(0);
   const [cropEnd, setCropEnd] = useState(0);
   const [zoom, setZoomState] = useState(1);
@@ -59,14 +72,22 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
 
   const engineRefs = { settingsRef, cropRef, loopRef };
 
-  const { isPlaying, playhead, setPlayhead, preview, stop } = useTransport(
-    buffer,
-    engineRefs,
-  );
-  const { isRendering, download } = useRenderer(buffer, file, {
+  const { isPlaying, isOriginal, playhead, setPlayhead, preview, stop } =
+    useTransport(buffer, engineRefs);
+  const { isRendering, download, renderSelection } = useRenderer(buffer, file, {
     settingsRef,
     cropRef,
   });
+
+  useWakeLock(isPlaying);
+
+  // Let the user know if a shared mix was loaded from the URL.
+  useEffect(() => {
+    if (readSettingsFromUrl()) {
+      showSuccess("Loaded shared settings from link.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateSettings = useCallback((p: Partial<RebassSettings>) => {
     setSettings((prev) => ({ ...prev, ...p }));
@@ -95,6 +116,16 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     },
     [presets],
   );
+
+  const shareSettings = useCallback(() => {
+    const url = buildShareUrl(settings);
+    navigator.clipboard
+      ?.writeText(url)
+      .then(() => showSuccess("Share link copied to clipboard!"))
+      .catch(() => {
+        window.prompt("Copy this share link:", url);
+      });
+  }, [settings]);
 
   const setCrop = useCallback((start: number, end: number) => {
     setCropStart(Math.max(0, start));
@@ -148,6 +179,7 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     buffer,
     isDecoding,
     isPlaying,
+    isOriginal,
     isRendering,
     settings,
     cropStart,
@@ -172,6 +204,8 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     stop,
     reset,
     download,
+    renderSelection,
+    shareSettings,
   };
 
   return (

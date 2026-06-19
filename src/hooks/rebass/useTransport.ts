@@ -9,6 +9,7 @@ export function useTransport(
   { settingsRef, cropRef, loopRef }: EngineRefs,
 ) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isOriginal, setIsOriginal] = useState(false);
   const [playhead, setPlayhead] = useState(0);
 
   const ctxRef = useRef<AudioContext | null>(null);
@@ -17,6 +18,7 @@ export function useTransport(
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef(0);
   const playingRef = useRef(false);
+  const bypassRef = useRef(false);
 
   const ensureCtx = useCallback(() => {
     if (!ctxRef.current) ctxRef.current = createAudioContext();
@@ -47,6 +49,7 @@ export function useTransport(
     });
     oscRef.current = [];
     setIsPlaying(false);
+    setIsOriginal(false);
   }, []);
 
   const animate = useCallback(() => {
@@ -54,8 +57,9 @@ export function useTransport(
     if (!ctx || !playingRef.current) return;
     const s = settingsRef.current;
     const { start, end } = cropRef.current;
+    const speed = bypassRef.current ? 1 : s.speed;
     const elapsed = ctx.currentTime - startTimeRef.current;
-    const srcElapsed = elapsed * s.speed;
+    const srcElapsed = elapsed * speed;
     const len = Math.max(0.0001, end - start);
     const pos = loopRef.current
       ? start + (srcElapsed % len)
@@ -64,48 +68,54 @@ export function useTransport(
     rafRef.current = requestAnimationFrame(animate);
   }, [settingsRef, cropRef, loopRef]);
 
-  const preview = useCallback(async () => {
-    if (!buffer) return;
-    stop();
-    const ctx = ensureCtx();
-    await ctx.resume();
-    const s = settingsRef.current;
-    const { start, end } = cropRef.current;
-    if (end - start < 0.02) {
-      showError("Selection is too short to preview.");
-      return;
-    }
-    const startTime = ctx.currentTime + 0.06;
-    startTimeRef.current = startTime;
+  const preview = useCallback(
+    async (bypass = false) => {
+      if (!buffer) return;
+      stop();
+      const ctx = ensureCtx();
+      await ctx.resume();
+      const s = settingsRef.current;
+      const { start, end } = cropRef.current;
+      if (end - start < 0.02) {
+        showError("Selection is too short to preview.");
+        return;
+      }
+      bypassRef.current = bypass;
+      const startTime = ctx.currentTime + 0.06;
+      startTimeRef.current = startTime;
 
-    const { source, oscillators } = buildGraph(ctx, buffer, s, {
-      cropStart: start,
-      cropEnd: end,
-      loop: loopRef.current,
-      applyFades: !loopRef.current,
-      startTime,
-    });
+      const { source, oscillators } = buildGraph(ctx, buffer, s, {
+        cropStart: start,
+        cropEnd: end,
+        loop: loopRef.current,
+        applyFades: !loopRef.current && !bypass,
+        startTime,
+        bypass,
+      });
 
-    if (loopRef.current) {
-      source.start(startTime, start);
-    } else {
-      source.start(startTime, start, end - start);
-    }
-    oscillators.forEach((o) => o.start(startTime));
+      if (loopRef.current) {
+        source.start(startTime, start);
+      } else {
+        source.start(startTime, start, end - start);
+      }
+      oscillators.forEach((o) => o.start(startTime));
 
-    source.onended = () => {
-      if (!loopRef.current) stop();
-    };
+      source.onended = () => {
+        if (!loopRef.current) stop();
+      };
 
-    sourceRef.current = source;
-    oscRef.current = oscillators;
-    playingRef.current = true;
-    setIsPlaying(true);
-    setPlayhead(start);
-    rafRef.current = requestAnimationFrame(animate);
-  }, [buffer, stop, animate, ensureCtx, settingsRef, cropRef, loopRef]);
+      sourceRef.current = source;
+      oscRef.current = oscillators;
+      playingRef.current = true;
+      setIsPlaying(true);
+      setIsOriginal(bypass);
+      setPlayhead(start);
+      rafRef.current = requestAnimationFrame(animate);
+    },
+    [buffer, stop, animate, ensureCtx, settingsRef, cropRef, loopRef],
+  );
 
   useEffect(() => () => stop(), [stop]);
 
-  return { isPlaying, playhead, setPlayhead, preview, stop };
+  return { isPlaying, isOriginal, playhead, setPlayhead, preview, stop };
 }

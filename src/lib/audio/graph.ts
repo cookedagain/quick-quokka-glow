@@ -9,6 +9,7 @@ export interface RenderOptions {
   loop: boolean;
   applyFades: boolean;
   startTime: number;
+  bypass?: boolean;
 }
 
 export interface GraphHandles {
@@ -24,6 +25,23 @@ export function buildGraph(
 ): GraphHandles {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
+
+  // A/B bypass: play the original audio, untouched.
+  if (opts.bypass) {
+    source.playbackRate.value = 1;
+    source.detune.value = 0;
+    if (opts.loop) {
+      source.loop = true;
+      source.loopStart = opts.cropStart;
+      source.loopEnd = opts.cropEnd;
+    }
+    const master = ctx.createGain();
+    master.gain.value = 1;
+    source.connect(master);
+    master.connect(ctx.destination);
+    return { source, oscillators: [] };
+  }
+
   source.playbackRate.value = s.speed;
   source.detune.value = s.lockPitchToSpeed ? 0 : s.pitch * 100;
 

@@ -1,0 +1,19 @@
+{
+  "name": "ReBass — In-browser remix studio",
+  "short_name": "ReBass",
+  "description": "Crop, slow, loop and bass-boost your tracks with EQ, reverb, echo and 8D. 100% local, export a WAV.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0d1a",
+  "theme_color": "#0f0d1a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

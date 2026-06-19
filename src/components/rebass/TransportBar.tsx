@@ -1,4 +1,4 @@
-import { Play, Square, Repeat } from "lucide-react";
+import { Play, Square, Repeat, GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRebass } from "@/hooks/use-rebass";
 import { formatTime } from "@/lib/audio/format";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 export const TransportBar = () => {
   const {
     isPlaying,
+    isOriginal,
     preview,
     stop,
     loop,
@@ -18,18 +19,37 @@ export const TransportBar = () => {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card/60 px-4 py-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
-          onClick={() => (isPlaying ? stop() : preview())}
+          onClick={() => (isPlaying && !isOriginal ? stop() : preview(false))}
           className="h-10 rounded-xl bg-neon-violet text-primary-foreground hover:bg-neon-violet/90 glow"
         >
-          {isPlaying ? (
+          {isPlaying && !isOriginal ? (
             <>
               <Square className="mr-2 h-4 w-4" /> Stop
             </>
           ) : (
             <>
               <Play className="mr-2 h-4 w-4" /> Preview
+            </>
+          )}
+        </Button>
+        <Button
+          variant={isOriginal ? "default" : "secondary"}
+          onClick={() => (isPlaying && isOriginal ? stop() : preview(true))}
+          className={cn(
+            "h-10 rounded-xl",
+            isOriginal && "bg-neon text-accent-foreground hover:bg-neon/90 glow-cyan",
+          )}
+          title="A/B compare with the original (O)"
+        >
+          {isPlaying && isOriginal ? (
+            <>
+              <Square className="mr-2 h-4 w-4" /> Original
+            </>
+          ) : (
+            <>
+              <GitCompare className="mr-2 h-4 w-4" /> Original
             </>
           )}
         </Button>
