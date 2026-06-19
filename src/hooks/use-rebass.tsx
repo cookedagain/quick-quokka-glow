@@ -37,6 +37,9 @@ interface RebassContextValue {
   applyUserPreset: (id: string) => void;
   deletePreset: (id: string) => void;
   setCrop: (start: number, end: number) => void;
+  setLoopPoints: (start: number, end: number) => void;
+  setLoopStartFromPlayhead: () => void;
+  setLoopEndFromPlayhead: () => void;
   setZoom: (z: number) => void;
   setPan: (p: number) => void;
   setLoop: (l: boolean) => void;
@@ -137,6 +140,31 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     setCropEnd(end);
   }, []);
 
+  const setLoopPoints = useCallback(
+    (start: number, end: number) => {
+      if (!buffer) return;
+      const safeStart = Math.max(0, Math.min(buffer.duration, start));
+      const safeEnd = Math.max(safeStart + 0.02, Math.min(buffer.duration, end));
+      setCropStart(safeStart);
+      setCropEnd(safeEnd);
+    },
+    [buffer],
+  );
+
+  const setLoopStartFromPlayhead = useCallback(() => {
+    if (!buffer) return;
+    const safeStart = Math.max(0, Math.min(playhead, cropEnd - 0.02));
+    setCropStart(safeStart);
+    showSuccess("Loop A set from playhead.");
+  }, [buffer, playhead, cropEnd]);
+
+  const setLoopEndFromPlayhead = useCallback(() => {
+    if (!buffer) return;
+    const safeEnd = Math.max(cropStart + 0.02, Math.min(playhead, buffer.duration));
+    setCropEnd(safeEnd);
+    showSuccess("Loop B set from playhead.");
+  }, [buffer, playhead, cropStart]);
+
   const setZoom = useCallback(
     (z: number) => {
       const clamped = Math.max(1, Math.min(40, z));
@@ -201,6 +229,9 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     applyUserPreset,
     deletePreset: remove,
     setCrop,
+    setLoopPoints,
+    setLoopStartFromPlayhead,
+    setLoopEndFromPlayhead,
     setZoom,
     setPan,
     setLoop,

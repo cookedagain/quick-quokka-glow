@@ -10,6 +10,7 @@ export const WaveformEditor = () => {
     cropStart,
     cropEnd,
     setCrop,
+    setLoopPoints,
     zoom,
     pan,
     playhead,
@@ -110,7 +111,18 @@ export const WaveformEditor = () => {
     if (!buffer) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
-    const t = getTime(e.clientX);
+    const t = Math.max(0, Math.min(duration, getTime(e.clientX)));
+
+    if (e.shiftKey) {
+      setLoopPoints(t, cropEnd);
+      return;
+    }
+
+    if (e.altKey) {
+      setLoopPoints(cropStart, t);
+      return;
+    }
+
     const handleTolPx = 22;
     const handleTol = (handleTolPx / size.w) * visible;
 
@@ -125,7 +137,7 @@ export const WaveformEditor = () => {
     }
 
     dragRef.current = "seek";
-    setPlayhead(Math.max(0, Math.min(duration, t)));
+    setPlayhead(t);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {

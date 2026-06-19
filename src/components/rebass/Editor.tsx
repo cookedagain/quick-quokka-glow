@@ -14,6 +14,7 @@ import { SpatialDynamicsPanel } from "./SpatialDynamicsPanel";
 import { FadePanel } from "./FadePanel";
 import { LoudnessPanel } from "./LoudnessPanel";
 import { SubSweepPanel } from "./SubSweepPanel";
+import { LoopPointsPanel } from "./LoopPointsPanel";
 import { ActionBar } from "./ActionBar";
 import { Button } from "@/components/ui/button";
 import { formatTime } from "@/lib/audio/format";
@@ -81,8 +82,8 @@ export const Editor = () => {
             <kbd className="font-mono text-neon">S</kbd> share
           </span>
           <span>
-            <kbd className="font-mono text-neon">←/→</kbd> trim start ·{" "}
-            <kbd className="font-mono text-neon">Alt+←/→</kbd> trim end
+            <kbd className="font-mono text-neon">Shift+Click</kbd> set A ·{" "}
+            <kbd className="font-mono text-neon">Alt+Click</kbd> set B
           </span>
         </div>
       </div>
@@ -90,6 +91,7 @@ export const Editor = () => {
       <PresetPanel />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <LoopPointsPanel />
         <StemLabPanel />
         <DeviceProfilePanel />
         <SpeedPitchPanel />
