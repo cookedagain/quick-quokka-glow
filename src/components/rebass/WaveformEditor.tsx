@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRebass } from "@/hooks/use-rebass";
 import { computePeaks } from "@/lib/audio/waveform";
 
-type DragMode = "none" | "start" | "end" | "move" | "seek";
+type DragMode = "none" | "start" | "end" | "seek";
 
 export const WaveformEditor = () => {
   const {
@@ -14,11 +14,13 @@ export const WaveformEditor = () => {
     pan,
     playhead,
     setPlayhead,
+    seekTo,
   } = useRebass();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 800, h: 200 });
   const dragRef = useRef<DragMode>("none");
+  const pointerMovedRef = useRef(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -56,13 +58,11 @@ export const WaveformEditor = () => {
     const endSample = Math.floor(viewEnd * buffer.sampleRate);
     const peaks = computePeaks(channel, startSample, endSample, size.w);
 
-    // selection background
     const selX0 = Math.max(0, timeToX(cropStart));
     const selX1 = Math.min(size.w, timeToX(cropEnd));
     ctx.fillStyle = "rgba(167,139,250,0.10)";
     ctx.fillRect(selX0, 0, selX1 - selX0, size.h);
 
-    // waveform
     const grad = ctx.createLinearGradient(0, 0, 0, size.h);
     grad.addColorStop(0, "rgba(34,211,238,0.9)");
     grad.addColorStop(0.5, "rgba(167,139,250,0.9)");
@@ -76,16 +76,14 @@ export const WaveformEditor = () => {
       ctx.fillRect(x, yMax, 1, Math.max(1, yMin - yMax));
     }
 
-    // selection edges
     ctx.fillStyle = "rgba(167,139,250,0.95)";
     ctx.fillRect(selX0 - 1, 0, 2, size.h);
     ctx.fillRect(selX1 - 1, 0, 2, size.h);
-    // handles (larger for touch)
+
     ctx.fillStyle = "rgba(34,211,238,1)";
     ctx.fillRect(selX0 - 4, mid - 20, 8, 40);
     ctx.fillRect(selX1 - 4, mid - 20, 8, 40);
 
-    // playhead
     const phX = timeToX(playhead);
     if (phX >= 0 && phX <= size.w) {
       ctx.fillStyle = "rgba(255,255,255,0.95)";
@@ -112,37 +110,56 @@ export const WaveformEditor = () => {
   const onPointerDown = (e: React.PointerEvent) => {
     if (!buffer) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    pointerMovedRef.current = false;
+
     const t = getTime(e.clientX);
-    // Pixel-based tolerance so handles are easy to grab on touch screens.
     const handleTolPx = 22;
     const handleTol = (handleTolPx / size.w) * visible;
+
     if (Math.abs(t - cropStart) < handleTol) {
       dragRef.current = "start";
-    } else if (Math.abs(t - cropEnd) < handleTol) {
-      dragRef.current = "end";
-    } else if (t > cropStart && t < cropEnd) {
-      dragRef.current = "seek";
-      setPlayhead(Math.max(cropStart, Math.min(cropEnd, t)));
-    } else {
-      dragRef.current = "seek";
-      setPlayhead(t);
+      return;
     }
+
+    if (Math.abs(t - cropEnd) < handleTol) {
+      dragRef.current = "end";
+      return;
+    }
+
+    dragRef.current = "seek";
+    setPlayhead(Math.max(cropStart, Math.min(cropEnd, t)));
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (dragRef.current === "none" || !buffer) return;
+    pointerMovedRef.current = true;
+
     const t = Math.max(0, Math.min(duration, getTime(e.clientX)));
     if (dragRef.current === "start") {
       setCrop(Math.min(t, cropEnd - 0.02), cropEnd);
     } else if (dragRef.current === "end") {
       setCrop(cropStart, Math.max(t, cropStart + 0.02));
     } else if (dragRef.current === "seek") {
-      setPlayhead(t);
+      setPlayhead(Math.max(cropStart, Math.min(cropEnd, t)));
     }
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = async (e: React.PointerEvent) => {
+    if (!buffer) {
+      dragRef.current = "none";
+      return;
+    }
+
+    const mode = dragRef.current;
     dragRef.current = "none";
+
+    if (mode !== "seek") return;
+
+    const t = Math.max(0, Math.min(duration, getTime(e.clientX)));
+    const clampedTime = Math.max(cropStart, Math.min(cropEnd, t));
+    setPlayhead(clampedTime);
+
+    await seekTo(clampedTime);
   };
 
   return (
@@ -157,7 +174,9 @@ export const WaveformEditor = () => {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerCancel={() => {
+          dragRef.current = "none";
+        }}
       />
     </div>
   );

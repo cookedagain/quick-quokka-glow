@@ -42,6 +42,7 @@ interface RebassContextValue {
   setLoop: (l: boolean) => void;
   setPlayhead: (t: number) => void;
   preview: (bypass?: boolean) => Promise<void>;
+  seekTo: (time: number) => Promise<void>;
   stop: () => void;
   reset: () => void;
   download: () => Promise<void>;
@@ -65,15 +66,21 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
 
   const { presets, save, remove } = usePresets();
 
-  // Latest-value refs for use inside the audio engine callbacks.
   const settingsRef = useLatestRef(settings);
   const cropRef = useLatestRef({ start: cropStart, end: cropEnd });
   const loopRef = useLatestRef(loop);
 
   const engineRefs = { settingsRef, cropRef, loopRef };
 
-  const { isPlaying, isOriginal, playhead, setPlayhead, preview, stop } =
-    useTransport(buffer, engineRefs);
+  const {
+    isPlaying,
+    isOriginal,
+    playhead,
+    setPlayhead,
+    preview,
+    seekTo,
+    stop,
+  } = useTransport(buffer, engineRefs);
   const { isRendering, download, renderSelection } = useRenderer(buffer, file, {
     settingsRef,
     cropRef,
@@ -81,12 +88,10 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
 
   useWakeLock(isPlaying);
 
-  // Let the user know if a shared mix was loaded from the URL.
   useEffect(() => {
     if (readSettingsFromUrl()) {
       showSuccess("Loaded shared settings from link.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const updateSettings = useCallback((p: Partial<RebassSettings>) => {
@@ -201,6 +206,7 @@ export function RebassProvider({ children }: { children: React.ReactNode }) {
     setLoop,
     setPlayhead,
     preview,
+    seekTo,
     stop,
     reset,
     download,

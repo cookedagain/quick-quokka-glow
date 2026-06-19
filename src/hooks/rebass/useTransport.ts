@@ -68,18 +68,22 @@ export function useTransport(
     rafRef.current = requestAnimationFrame(animate);
   }, [settingsRef, cropRef, loopRef]);
 
-  const preview = useCallback(
-    async (bypass = false) => {
+  const startPlayback = useCallback(
+    async (fromTime: number, bypass = false) => {
       if (!buffer) return;
       stop();
       const ctx = ensureCtx();
       await ctx.resume();
       const s = settingsRef.current;
       const { start, end } = cropRef.current;
+      const seekTime = Math.max(start, Math.min(end, fromTime));
+      const remainingDuration = Math.max(0.02, end - seekTime);
+
       if (end - start < 0.02) {
         showError("Selection is too short to preview.");
         return;
       }
+
       bypassRef.current = bypass;
       const startTime = ctx.currentTime + 0.06;
       startTimeRef.current = startTime;
@@ -94,9 +98,9 @@ export function useTransport(
       });
 
       if (loopRef.current) {
-        source.start(startTime, start);
+        source.start(startTime, seekTime);
       } else {
-        source.start(startTime, start, end - start);
+        source.start(startTime, seekTime, remainingDuration);
       }
       oscillators.forEach((o) => o.start(startTime));
 
@@ -109,13 +113,42 @@ export function useTransport(
       playingRef.current = true;
       setIsPlaying(true);
       setIsOriginal(bypass);
-      setPlayhead(start);
+      setPlayhead(seekTime);
       rafRef.current = requestAnimationFrame(animate);
     },
     [buffer, stop, animate, ensureCtx, settingsRef, cropRef, loopRef],
   );
 
+  const preview = useCallback(
+    async (bypass = false) => {
+      const { start } = cropRef.current;
+      await startPlayback(start, bypass);
+    },
+    [cropRef, startPlayback],
+  );
+
+  const seekTo = useCallback(
+    async (time: number) => {
+      const { start, end } = cropRef.current;
+      const seekTime = Math.max(start, Math.min(end, time));
+      setPlayhead(seekTime);
+
+      if (!playingRef.current) return;
+
+      await startPlayback(seekTime, bypassRef.current);
+    },
+    [cropRef, startPlayback],
+  );
+
   useEffect(() => () => stop(), [stop]);
 
-  return { isPlaying, isOriginal, playhead, setPlayhead, preview, stop };
+  return {
+    isPlaying,
+    isOriginal,
+    playhead,
+    setPlayhead,
+    preview,
+    seekTo,
+    stop,
+  };
 }
